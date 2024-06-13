@@ -1,0 +1,43 @@
+# Abundance analysis
+
+
+mujeres<-subset_samples(m.bmi5,#tax.genus,
+                         sexo_cat =="M")
+mujeres
+
+m.si<-subset_samples(mujeres,#tax.genus,
+                         Deficiencia_vitaminaD =="No_deficiencia")
+m.si<-phyloseq_filter_prevalence(m.si, prev.trh = .15)#bueno 
+m.si
+
+m.ri<-subset_samples( mujeres, #tax.genus, 
+                          Deficiencia_vitaminaD =="Deficiencia")
+m.ri<-phyloseq_filter_prevalence(m.ri, prev.trh = .15) 
+m.ri
+
+
+prev.gen.m<-merge_phyloseq(m.si,m.ri)
+prev.gen.m
+
+
+
+
+#tax.5m<-phyloseq_filter_prevalence(mujeres, prev.trh = .15)
+
+
+
+
+{lefse.vit2.m<-run_lefse(
+  prev.gen.m,#prev.gen - buenooo
+  transform ="log10p",#"identity" #log10p --bueno
+  norm = "CPM",
+  wilcoxon_cutoff = 0.05,
+  group = "Deficiencia_vitaminaD",
+  taxa_rank = "Genus",
+  kw_cutoff = 0.05,
+  lda_cutoff = 1.8,
+  sample_min = 25#15 -bueno
+)
+  
+  
+  plot_ef_bar(lefse.vit2.m)}
