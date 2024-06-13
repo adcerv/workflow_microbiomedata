@@ -1,0 +1,88 @@
+# Load libraries
+library(
+
+
+# Estimation of alpha diversity
+
+# Alpha diversity estimates can be worked from the phyloque file, 
+# however in this case, editing and implementing statistics required the generation of a dataframe containing the metadata.
+
+
+alpha_pd <-estimate_richness(rare.bacteria, measures=c("Shannon",
+                                                       "Observed",
+                                                       "Chao1",
+                                                       "Simpson"
+))
+alpha_pd$SampleID<-rownames(alpha_pd)
+
+
+ref.meta<-metadata_file%>%
+  select(SampleID,smatp1,homa_cat , tejido_p, glucosa,
+         MediciónInsulina_µUml,homa1,edad1,DMO_cadera_categorica,
+         sexo_cat,dmo_cat ,bmi_cat,Deficiencia_vitaminaD,vitdngml, m_pre_pos45,m_pre_pos47,m_pre_pos50,m_pre_pos55 )
+
+
+global.data<-merge(alpha_pd,ref.meta,by="SampleID",all.x = TRUE)
+dim(global.data)
+
+head(global.data)
+
+
+
+
+alfa.m.pos2<-alfa.m.pos%>%
+  filter( Deficiencia_vitaminaD.x %in% c("No_deficiencia", "Deficiencia")&
+            bmi.x > 18 &
+            #  edad < 65 &
+            # bmi_cat!= "99" &
+            daño_renal == "Normal" &
+            # m_pre_pos50.x=="pre" 
+            sexo_cat.x == "M" &
+            vitdngml.x <140 &
+            Suplemento_vitD != "Yes"&
+            Shannon >1)%>%
+  mutate(pre_pos_45a =as.factor(if_else(edad1<47, "pre","pos")))
+
+
+
+
+
+
+
+terciles.g<-quantile(alfa.m.pos2$vitdngml.x, prob = c(.33,.66,1),na.rm=TRUE)
+cuartiles.g<-quantile(alfa.m.pos2$vitdngml.x, prob = c(0.25,.5,0.75, 1),na.rm=TRUE)
+
+
+
+alfa.m.pos2%>%
+  mutate(terciles=cut(vitdngml.x, breaks = c(-Inf, terciles.g),
+                      labels = c("T1","T2","T3")),
+         cuartiles=cut(vitdngml.x, breaks = c(-Inf, cuartiles.g),
+                      labels = c("Q1","Q2","Q3","Q4")),
+        Deficiencia_cat = as.factor(if_else(Deficiencia_vitaminaD.x=="Deficiencia","Def","Non")),
+        vitD_bmi = as.factor(paste(Deficiencia_cat,bmi_cat,sep = "-")),
+        bmi_cat2 = as.factor(if_else(bmi_cat=="Normal","Normal","Over") ),
+        vitD_bmi2 = as.factor(paste(Deficiencia_cat,bmi_cat2,sep = "-")),
+        Def_suple = as.factor(paste(Deficiencia_cat,Suplemento_vitD,sep = "_"))
+         )%>%
+  select(Observed:Simpson, Deficiencia_cat,Def_suple,
+         terciles)%>%
+ # subset(Def_suple != "Non_Yes")%>%
+  melt()%>%
+  ggplot(aes(x=as.factor(terciles),  y=value,
+             fill=terciles ))+  #cambiar
+  geom_boxplot()+
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 12,face="bold", color="black"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 10,face="bold"),
+        legend.position="top",
+        legend.text = element_text( size =15, face ="bold"),
+        legend.title = element_blank())+
+  facet_wrap(~ variable, scales = "free_y", nrow = 1)+
+  geom_pwc(method = "wilcox_test"#hide.ns = TRUE, #label = "p.adj", p.adjust.method = "bonferroni"
+  )+
+  theme(legend.position="none")
+
+
+
