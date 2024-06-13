@@ -1,0 +1,112 @@
+# Install libraries
+
+library(qiime2R) # reading files
+library(ggpubr) # generating graphics
+library(ggplot2)
+library(phyloseq) 
+library(tidyverse) # data management
+library(ggtree)
+library(splitstackshape)
+library(xtable)
+library(kableExtra)
+library(btools)
+library(Maaslin2)
+library(reshape2)
+library(readxl)
+library(openxlsx)
+library(microbiome) # Alternative libraries for managing microbiota data
+library(metagenomeSeq)
+library(microeco)
+
+
+# The phyloseq file is generated with qza_to_phyloseq function in qiime2R library
+# For more information, consult the user manual.
+
+
+physeq.pre<-qza_to_phyloseq(
+  features="table_ene2024_b.qza",
+  tree="unrooted-tree_ene2024_b.qza",
+  taxonomy= "taxonomy_ene2024_b.qza",
+  metadata = "april_metadata_agemod.xlsx - Sheet 1.tsv"
+)
+
+physeq.pre
+
+
+## When the complete metadata is not available, an insertion can be made into the phyloseq object
+
+new.data3<-read.xlsx("metadata_final para merge.xlsx")
+new.data3<-as.data.frame(unclass(new.data3),stringsAsFactors=TRUE)
+dim(new.data3)
+summary(new.data3)
+rownames(new.data3)<-new.data3$SampleID
+new.data3<- sample_data(new.data3)
+class(new.data3)
+head(new.data3,3)
+
+physeq <- merge_phyloseq(physeq.pre, new.data3 )
+
+physeq 
+
+
+
+## The metadata contains a database of the selected samples, filter by select
+
+physeq.f <- subset_samples(physeq, status == "select")
+physeq.f
+
+
+## to know how many samples meet the criteria of at least more than 10,000 reads
+table((sample_sums(physeq.f))>10000)
+
+
+# filter samples with > 10000 reads
+prune.bacteria = prune_samples(sample_sums(physeq.f) > 10000, physeq.f)
+prune.bacteria
+
+
+## To eliminate readings associated with chloroplasts and mitochondria, 
+# this step is done for different taxonomic categories and in two steps since it cannot be done in just one.
+
+
+prune.bacteria2 <- prune.bacteria %>%
+  subset_taxa(
+    Kingdom == "d__Bacteria" &                   #only bacteria
+      Family  != "Mitochondria" &             #filter out mitochondria
+      Class   != "Chloroplast" &
+      Genus != "Mitochondria"#filter out chloroplasts
+  )
+prune.bacteria2
+
+prune.bacteria3 <- prune.bacteria2 %>%
+  subset_taxa(
+    #Kingdom == "d__Bacteria" &                   #only bacteria
+      Family  != "Chloroplast" &             #filter out mitochondria
+      Class   != "Mitochondria" &
+      Genus != "Chloroplast"#filter out chloroplasts
+  )
+prune.bacteria3
+
+
+# Check if there are any otus with 0 readings and delete them
+
+any(taxa_sums(prune.bacteria3) == 0)
+sum(taxa_sums(prune.bacteria3) == 0)
+
+prune.bacteria3 <- prune_taxa(taxa_sums(prune.bacteria3) > 0, 
+                             prune.bacteria3)
+
+
+# Get the reads of each sample from lowest to highest
+
+head(sort(colSums(otu_table(prune.bacteria3))))
+
+# Make the seed
+set.seed(2304549)
+
+
+# Normalize by minimum rarefaction counts
+
+rare.bacteria = rarefy_even_depth(prune.bacteria3, sample.size = 10589)
+rare.bacteria
+
